@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Silo</title>
+</head>
+<body>
+    <h1>The Silo</h1>
+    <p>This is a placeholder for the tower defense prototype.</p>
+    <script>
+        function saveProgress(wave) {
+            document.cookie = 'siloWave=' + wave + '; path=/';
+        }
+        function loadProgress() {
+            const match = document.cookie.match(/(?:^|; )siloWave=(\d+)/);
+            return match ? parseInt(match[1], 10) : 1;
+        }
+        const wave = loadProgress();
+        const waveEl = document.createElement('p');
+        // Call saveProgress(wave) whenever the player completes a wave.
+        waveEl.textContent = 'Current wave: ' + wave;
+        document.body.appendChild(waveEl);
+    </script>
+</body>
+</html>
