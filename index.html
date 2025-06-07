@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Silo Defense</title>
+    <style>
+        body {
+            background-color: #011; /* dark background */
+            color: #cfc;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            background-color: #021;
+            padding: 10px;
+            text-align: center;
+        }
+        #gameContainer {
+            flex: 1 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+        #canvasWrapper {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+        }
+        canvas {
+            width: 100%;
+            height: 400px;
+            background-color: #040;
+            border: 2px solid #060;
+        }
+        #controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            background-color: #262;
+            color: #efe;
+            border: 1px solid #494;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #373;
+        }
+        @media (max-width: 600px) {
+            canvas {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>The Silo Defense</h1>
+    </header>
+    <div id="gameContainer">
+        <div id="canvasWrapper">
+            <canvas id="gameCanvas" width="600" height="400"></canvas>
+        </div>
+        <div id="stats"></div>
+        <div id="controls">
+            <button id="startBtn">Start Wave</button>
+            <button id="upgradeDamageBtn">Upgrade Damage</button>
+            <button id="upgradeRateBtn">Upgrade Fire Rate</button>
+        </div>
+    </div>
+
+    <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const statsDiv = document.getElementById('stats');
+    const startBtn = document.getElementById('startBtn');
+    const upgradeDamageBtn = document.getElementById('upgradeDamageBtn');
+    const upgradeRateBtn = document.getElementById('upgradeRateBtn');
+
+    let lastTime = performance.now();
+    let enemies = [];
+    let bullets = [];
+    let waveInProgress = false;
+
+    const state = {
+        coins: 0,
+        damage: 1,
+        fireRate: 1, // bullets per second
+        baseHealth: 10,
+        currentWave: 0,
+        lastFire: 0
+    };
+
+    function saveState() {
+        document.cookie = 'siloSave=' + encodeURIComponent(JSON.stringify(state)) + ';path=/';
+    }
+
+    function loadState() {
+        const match = document.cookie.match(/(?:^|; )siloSave=([^;]+)/);
+        if (match) {
+            try {
+                const data = JSON.parse(decodeURIComponent(match[1]));
+                Object.assign(state, data);
+            } catch(e) {
+                console.error('Failed to load save:', e);
+            }
+        }
+    }
+
+    function updateStats() {
+        statsDiv.textContent =
+            `Coins: ${state.coins} | Damage: ${state.damage} | Fire Rate: ${state.fireRate.toFixed(1)} | Base HP: ${state.baseHealth}`;
+    }
+
+    function spawnWave() {
+        const count = 5 + state.currentWave * 2;
+        for (let i = 0; i < count; i++) {
+            enemies.push({
+                x: Math.random() * canvas.width,
+                y: -Math.random() * 200,
+                hp: 2 + state.currentWave,
+                speed: 40 + state.currentWave * 5
+            });
+        }
+        waveInProgress = true;
+    }
+
+    function fireBullet() {
+        bullets.push({ x: canvas.width / 2, y: canvas.height - 20, speed: 150 });
+    }
+
+    function update(dt) {
+        if (waveInProgress && performance.now() - state.lastFire > 1000/state.fireRate) {
+            fireBullet();
+            state.lastFire = performance.now();
+        }
+
+        // Update bullets
+        bullets.forEach(b => b.y -= b.speed * dt);
+        bullets = bullets.filter(b => b.y > -10);
+
+        // Update enemies
+        enemies.forEach(e => e.y += e.speed * dt);
+
+        // Bullet-enemy collision
+        bullets.forEach(b => {
+            enemies.forEach(e => {
+                if (Math.abs(b.x - e.x) < 10 && Math.abs(b.y - e.y) < 10) {
+                    e.hp -= state.damage;
+                    b.y = -20; // remove bullet
+                }
+            });
+        });
+        enemies = enemies.filter(e => e.hp > 0 && e.y < canvas.height + 20);
+
+        // Enemies reaching base
+        enemies.forEach(e => {
+            if (e.y >= canvas.height - 10) {
+                state.baseHealth -= 1;
+                e.hp = 0;
+            }
+        });
+
+        if (waveInProgress && enemies.length === 0) {
+            waveInProgress = false;
+            state.currentWave++;
+            state.coins += 5 + state.currentWave;
+        }
+
+        if (state.baseHealth <= 0) {
+            alert('Base destroyed! Game over.');
+            Object.assign(state, {
+                coins: 0,
+                damage: 1,
+                fireRate: 1,
+                baseHealth: 10,
+                currentWave: 0
+            });
+            enemies = [];
+            bullets = [];
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+
+        // Draw base
+        ctx.fillStyle = '#080';
+        ctx.fillRect(canvas.width/2 - 20, canvas.height - 20, 40, 20);
+
+        // Draw bullets
+        ctx.fillStyle = '#efe';
+        bullets.forEach(b => {
+            ctx.fillRect(b.x - 2, b.y - 8, 4, 8);
+        });
+
+        // Draw enemies
+        ctx.fillStyle = '#a22';
+        enemies.forEach(e => {
+            ctx.fillRect(e.x - 10, e.y - 10, 20, 20);
+        });
+    }
+
+    function gameLoop(timestamp) {
+        const dt = (timestamp - lastTime)/1000;
+        lastTime = timestamp;
+        update(dt);
+        draw();
+        updateStats();
+        saveState();
+        requestAnimationFrame(gameLoop);
+    }
+
+    startBtn.addEventListener('click', () => {
+        if (!waveInProgress) spawnWave();
+    });
+
+    upgradeDamageBtn.addEventListener('click', () => {
+        if (state.coins >= 10) {
+            state.coins -= 10;
+            state.damage += 1;
+        }
+    });
+
+    upgradeRateBtn.addEventListener('click', () => {
+        if (state.coins >= 15) {
+            state.coins -= 15;
+            state.fireRate += 0.5;
+        }
+    });
+
+    loadState();
+    updateStats();
+    requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
